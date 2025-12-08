@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import costosData from "../data/costos_2026.json";
 
 type Nivel = "licenciatura" | "salud" | "maestria" | "preparatoria";
-type Modalidad = "presencial" | "online";
+type Modalidad = "presencial" | "online" | "mixta";
 type Tier = "T1" | "T2" | "T3";
 
 interface RangoPromedio {
@@ -82,6 +82,44 @@ function buildPlanteles(): PlantelInfo[] {
 }
 
 const PLANTELES: PlantelInfo[] = buildPlanteles();
+
+const normalizarTexto = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const obtenerPrecioListaEspecial = (
+  nivel: Nivel | "",
+  modalidad: Modalidad | "",
+  plan: number | "",
+  plantel: string
+): number | null => {
+  if (!nivel || !modalidad || !plan || !plantel) {
+    return null;
+  }
+
+  const esEscolarOMixta =
+    modalidad === "presencial" || modalidad === "mixta";
+  const plantelNorm = normalizarTexto(plantel);
+
+  if (esEscolarOMixta && nivel === "licenciatura") {
+    if (plantelNorm === "culiacan" || plantelNorm === "queretaro") {
+      if (plan === 11) return 3710;
+      if (plan === 9) return 4594;
+    }
+  }
+
+  if (esEscolarOMixta && nivel === "salud") {
+    if (plantelNorm === "chihuahua") {
+      return 3988;
+    }
+  }
+
+  return null;
+};
+
 const COSTOS: CostoItem[] = costosData as CostoItem[];
 
 interface SearchableSelectProps {
@@ -210,6 +248,7 @@ const ScholarshipCalculator: React.FC = () => {
   const [resultadoPorcentaje, setResultadoPorcentaje] = useState<number | null>(
     null
   );
+  const [precioLista, setPrecioLista] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
 
   const costos = COSTOS;
@@ -256,6 +295,80 @@ const ScholarshipCalculator: React.FC = () => {
     if (niv === "licenciatura") return info.licTier;
     return undefined;
   };
+
+  useEffect(() => {
+    if (!nivel || !modalidad || !plan) {
+      setPrecioLista(null);
+      return;
+    }
+    if ((nivel === "licenciatura" || nivel === "salud") && !plantel) {
+      setPrecioLista(null);
+      return;
+    }
+    if (!promedio) {
+      setPrecioLista(null);
+      return;
+    }
+
+    const promedioNumRaw = Number(String(promedio).replace(",", "."));
+    if (Number.isNaN(promedioNumRaw) || promedioNumRaw <= 0 || promedioNumRaw > 10) {
+      setPrecioLista(null);
+      return;
+    }
+
+    const promedioNum = Math.round(promedioNumRaw * 10) / 10;
+
+    let tier: Tier | undefined;
+    if (nivel === "licenciatura" || nivel === "salud") {
+      tier = getTierForPlantel(nivel, plantel || "");
+      if (!tier) {
+        setPrecioLista(null);
+        return;
+      }
+    }
+
+    const candidatos = costos.filter((c) => {
+      if (c.nivel !== nivel || c.modalidad !== modalidad || c.plan !== plan) {
+        return false;
+      }
+      if (nivel === "licenciatura" || nivel === "salud") {
+        return c.tier === tier;
+      }
+      return true;
+    });
+
+    const match = candidatos.find((c) => {
+      const min = c.rango.min - 1e-6;
+      const max = c.rango.max + 1e-6;
+      return promedioNum >= min && promedioNum <= max;
+    });
+
+    if (!match) {
+      setPrecioLista(null);
+      return;
+    }
+
+    const especial = obtenerPrecioListaEspecial(
+      nivel,
+      modalidad,
+      plan,
+      plantel || ""
+    );
+
+    if (especial !== null) {
+      setPrecioLista(especial);
+      return;
+    }
+
+    if (match.porcentaje >= 100) {
+      setPrecioLista(null);
+      return;
+    }
+
+    const base = match.monto / (1 - match.porcentaje / 100);
+    const baseRedondeado = Math.round(base * 100) / 100;
+    setPrecioLista(baseRedondeado);
+  }, [costos, nivel, modalidad, plan, plantel, promedio]);
 
   const handleCalcular = () => {
     setError("");
@@ -315,7 +428,21 @@ const ScholarshipCalculator: React.FC = () => {
       return;
     }
 
-    setResultadoMonto(match.monto);
+    const especial = obtenerPrecioListaEspecial(
+      nivel,
+      modalidad,
+      plan,
+      plantel || ""
+    );
+
+    let montoFinal = match.monto;
+
+    if (especial !== null) {
+      montoFinal =
+        Math.round(especial * (1 - match.porcentaje / 100) * 100) / 100;
+    }
+
+    setResultadoMonto(montoFinal);
     setResultadoPorcentaje(match.porcentaje);
   };
 
@@ -327,6 +454,7 @@ const ScholarshipCalculator: React.FC = () => {
     setPromedio("");
     setResultadoMonto(null);
     setResultadoPorcentaje(null);
+    setPrecioLista(null);
     setError("");
   };
 
@@ -470,6 +598,28 @@ const ScholarshipCalculator: React.FC = () => {
           </div>
         </div>
 
+        {precioLista !== null && (
+          <section className="mt-4 rounded-2xl border border-slate-700 bg-slate-900/80 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                Precio lista (sin beca)
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-slate-400">
+                Mensualidad antes de aplicar beca
+              </p>
+              <p className="text-xl md:text-2xl font-semibold text-slate-50">
+                {precioLista.toLocaleString("es-MX", {
+                  style: "currency",
+                  currency: "MXN",
+                  maximumFractionDigits: 2,
+                })}
+              </p>
+            </div>
+          </section>
+        )}
+
         {resultadoMonto !== null && resultadoPorcentaje !== null && (
           <section className="mt-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 md:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -498,13 +648,9 @@ const ScholarshipCalculator: React.FC = () => {
           </section>
         )}
 
-        <footer className="pt-2 border-t border-slate-800/60 mt-2 text-[11px] text-slate-500 flex flex-wrap justify-between gap-2">
-          <span>
-            Los montos mostrados se basan en el archivo costos_2026.json.
-          </span>
-          <span>
-            Ajusta reglas o formatos en el código según cambios institucionales.
-          </span>
+        <footer className="pt-2 border-t border-slate-800/60 mt-2 text-[11px] text-slate-400 flex flex-col items-start gap-1">
+          <span className="font-semibold tracking-wide">UNIDEP</span>
+          <span>ReLead (Marca de derechos reservados)</span>
         </footer>
       </div>
     </div>
