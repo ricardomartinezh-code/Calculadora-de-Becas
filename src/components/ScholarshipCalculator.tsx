@@ -278,6 +278,13 @@ const ScholarshipCalculator: React.FC = () => {
   }, [costos, nivel, modalidad]);
 
   const plantelesDisponibles = useMemo(() => {
+    const requierePlantel =
+      (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online";
+
+    if (!requierePlantel) {
+      return [];
+    }
+
     if (nivel === "licenciatura") {
       return PLANTELES.filter((p) => p.licTier).map((p) => p.name);
     }
@@ -285,7 +292,7 @@ const ScholarshipCalculator: React.FC = () => {
       return PLANTELES.filter((p) => p.saludTier).map((p) => p.name);
     }
     return [];
-  }, [nivel]);
+  }, [nivel, modalidad]);
 
   const getTierForPlantel = (niv: Nivel | "", name: string): Tier | undefined => {
     if (!name) return undefined;
@@ -301,25 +308,17 @@ const ScholarshipCalculator: React.FC = () => {
       setPrecioLista(null);
       return;
     }
-    if ((nivel === "licenciatura" || nivel === "salud") && !plantel) {
-      setPrecioLista(null);
-      return;
-    }
-    if (!promedio) {
-      setPrecioLista(null);
-      return;
-    }
 
-    const promedioNumRaw = Number(String(promedio).replace(",", "."));
-    if (Number.isNaN(promedioNumRaw) || promedioNumRaw <= 0 || promedioNumRaw > 10) {
+    const requierePlantel =
+      (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online";
+
+    if (requierePlantel && !plantel) {
       setPrecioLista(null);
       return;
     }
-
-    const promedioNum = Math.round(promedioNumRaw * 10) / 10;
 
     let tier: Tier | undefined;
-    if (nivel === "licenciatura" || nivel === "salud") {
+    if (requierePlantel) {
       tier = getTierForPlantel(nivel, plantel || "");
       if (!tier) {
         setPrecioLista(null);
@@ -331,19 +330,13 @@ const ScholarshipCalculator: React.FC = () => {
       if (c.nivel !== nivel || c.modalidad !== modalidad || c.plan !== plan) {
         return false;
       }
-      if (nivel === "licenciatura" || nivel === "salud") {
+      if (requierePlantel) {
         return c.tier === tier;
       }
       return true;
     });
 
-    const match = candidatos.find((c) => {
-      const min = c.rango.min - 1e-6;
-      const max = c.rango.max + 1e-6;
-      return promedioNum >= min && promedioNum <= max;
-    });
-
-    if (!match) {
+    if (!candidatos.length) {
       setPrecioLista(null);
       return;
     }
@@ -360,15 +353,17 @@ const ScholarshipCalculator: React.FC = () => {
       return;
     }
 
-    if (match.porcentaje >= 100) {
+    const referencia = candidatos[0];
+
+    if (referencia.porcentaje >= 100) {
       setPrecioLista(null);
       return;
     }
 
-    const base = match.monto / (1 - match.porcentaje / 100);
+    const base = referencia.monto / (1 - referencia.porcentaje / 100);
     const baseRedondeado = Math.round(base * 100) / 100;
     setPrecioLista(baseRedondeado);
-  }, [costos, nivel, modalidad, plan, plantel, promedio]);
+  }, [costos, nivel, modalidad, plan, plantel]);
 
   const handleCalcular = () => {
     setError("");
@@ -380,7 +375,10 @@ const ScholarshipCalculator: React.FC = () => {
       return;
     }
 
-    if ((nivel === "licenciatura" || nivel === "salud") && !plantel) {
+    const requierePlantel =
+      (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online";
+
+    if (requierePlantel && !plantel) {
       setError("Selecciona un plantel para esta línea de negocio.");
       return;
     }
@@ -399,7 +397,7 @@ const ScholarshipCalculator: React.FC = () => {
     const promedioNum = Math.round(promedioNumRaw * 10) / 10;
 
     let tier: Tier | undefined;
-    if (nivel === "licenciatura" || nivel === "salud") {
+    if (requierePlantel) {
       tier = getTierForPlantel(nivel, plantel || "");
       if (!tier) {
         setError("No se encontró el tier para el plantel seleccionado.");
@@ -411,7 +409,7 @@ const ScholarshipCalculator: React.FC = () => {
       if (c.nivel !== nivel || c.modalidad !== modalidad || c.plan !== plan) {
         return false;
       }
-      if (nivel === "licenciatura" || nivel === "salud") {
+      if (requierePlantel) {
         return c.tier === tier;
       }
       return true;
@@ -535,7 +533,7 @@ const ScholarshipCalculator: React.FC = () => {
 
           <SearchableSelect
             label={
-              nivel === "licenciatura" || nivel === "salud"
+              (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online"
                 ? "Plantel"
                 : "Plantel (no aplica)"
             }
@@ -547,13 +545,15 @@ const ScholarshipCalculator: React.FC = () => {
               setResultadoPorcentaje(null);
             }}
             placeholder={
-              nivel === "licenciatura" || nivel === "salud"
+              (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online"
                 ? "Selecciona plantel"
-                : "No es necesario para este nivel"
+                : "No es necesario para este nivel o modalidad"
             }
             disabled={
-              !(nivel === "licenciatura" || nivel === "salud") ||
-              plantelesDisponibles.length === 0
+              !(
+                (nivel === "licenciatura" || nivel === "salud") &&
+                modalidad !== "online"
+              ) || plantelesDisponibles.length === 0
             }
           />
         </div>
@@ -650,7 +650,7 @@ const ScholarshipCalculator: React.FC = () => {
 
         <footer className="pt-2 border-t border-slate-800/60 mt-2 text-[11px] text-slate-400 flex flex-col items-start gap-1">
           <span className="font-semibold tracking-wide">UNIDEP</span>
-          <span>ReLead®</span>
+          <span>ReLead (Marca de derechos reservados)</span>
         </footer>
       </div>
     </div>
