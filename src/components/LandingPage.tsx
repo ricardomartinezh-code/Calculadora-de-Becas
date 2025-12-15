@@ -74,21 +74,14 @@ export default function LandingPage() {
         </div>
 
         <footer className="mt-10 pt-6 border-t border-slate-800/60 flex items-center justify-center">
-          <picture>
-            <source
-              type="image/svg+xml"
-              srcSet="/branding/relead-logo.svg"
-            />
-            <img
-              src="/branding/relead-logo.gif"
-              alt="ReLead"
-              className="h-8 w-auto opacity-90"
-              loading="lazy"
-            />
-          </picture>
+          <img
+            src="/branding/relead-logo.gif"
+            alt="ReLead"
+            className="h-8 w-auto opacity-90"
+            loading="lazy"
+          />
         </footer>
       </div>
     </div>
   );
 }
-

@@ -280,7 +280,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 };
 
 const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
-  university = "demo",
+  university = "unidep",
 }) => {
   const [programa, setPrograma] = useState<Programa>("nuevo");
   const [nivel, setNivel] = useState<Nivel | "">("");
@@ -819,20 +819,14 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
         <footer className="mt-6 border-t border-slate-800/60 pt-6 text-[11px] text-slate-400 flex flex-col items-center justify-center gap-2 text-center">
           {university === "unidep" && (
             <div className="flex items-center justify-center">
-              <picture>
-                <source
-                  type="image/svg+xml"
-                  srcSet="/branding/recalc-logo.svg"
-                />
-                <img
-                  src="/branding/recalc-logo.png"
-                  alt="ReCalc Scholarship logo"
-                  width={220}
-                  height={64}
-                  className="h-10 sm:h-12 w-auto max-w-[240px] object-contain opacity-95 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]"
-                  loading="lazy"
-                />
-              </picture>
+              <img
+                src="/branding/recalc-logo.svg"
+                alt="ReCalc Scholarship logo"
+                width={220}
+                height={64}
+                className="h-10 sm:h-12 w-auto max-w-[240px] object-contain opacity-95 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]"
+                loading="lazy"
+              />
             </div>
           )}
           <span>Powered by ReLead©</span>
