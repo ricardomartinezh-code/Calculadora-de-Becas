@@ -5,7 +5,7 @@ type Nivel = "licenciatura" | "salud" | "maestria" | "preparatoria";
 type Modalidad = "presencial" | "online" | "mixta";
 type Tier = "T1" | "T2" | "T3";
 type Programa = "nuevo" | "regreso";
-type UniversityKey = "demo" | "unidep";
+type UniversityKey = "unidep";
 
 interface RangoPromedio {
   min: number;
@@ -142,7 +142,6 @@ const COSTOS: CostoItem[] = costosData as CostoItem[];
 
 interface ScholarshipCalculatorProps {
   university?: UniversityKey;
-  onUniversityChange?: (university: UniversityKey) => void;
 }
 
 interface SearchableSelectProps {
@@ -282,7 +281,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
 const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
   university = "demo",
-  onUniversityChange,
 }) => {
   const [programa, setPrograma] = useState<Programa>("nuevo");
   const [nivel, setNivel] = useState<Nivel | "">("");
@@ -572,30 +570,18 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 	          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight [@media(max-height:700px)]:text-lg">
 	            ReCalc Scholarship
 	          </h1>
+            {university === "unidep" && (
+              <div className="max-w-2xl mx-auto flex justify-end">
+                <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900/60 px-2.5 py-1 text-[10px] font-semibold tracking-[0.18em] text-slate-200">
+                  UNIDEP
+                </span>
+              </div>
+            )}
 	          <p className="text-sm text-slate-300 max-w-2xl mx-auto [@media(max-height:700px)]:hidden">
 	            Selecciona la línea de negocio, modalidad, plan de estudios y plantel.
 	            Luego ingresa el promedio y obtén el porcentaje de beca y el monto mensual
 	            de colegiatura.
 	          </p>
-            <div className="pt-3 flex flex-col items-center gap-2">
-              <label className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                Selecciona tu Universidad
-              </label>
-              <select
-                value={university}
-                onChange={(e) =>
-                  onUniversityChange?.(e.target.value as UniversityKey)
-                }
-                className={`w-full max-w-[280px] rounded-xl border bg-slate-900/60 px-3 py-2 text-sm text-slate-50 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 ${
-                  accent === "violet"
-                    ? "border-slate-700 focus:ring-violet-400/70"
-                    : "border-slate-700 focus:ring-emerald-400/70"
-                }`}
-              >
-                <option value="demo">Demo</option>
-                <option value="unidep">UNIDEP</option>
-              </select>
-            </div>
 	        </header>
 
         {error && (
@@ -833,14 +819,20 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
         <footer className="mt-6 border-t border-slate-800/60 pt-6 text-[11px] text-slate-400 flex flex-col items-center justify-center gap-2 text-center">
           {university === "unidep" && (
             <div className="flex items-center justify-center">
-              <img
-                src="/branding/recalc-logo.gif"
-                alt="ReCalc Scholarship logo"
-                width={220}
-                height={64}
-                className="h-10 sm:h-12 w-auto max-w-[240px] object-contain opacity-95 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]"
-                loading="lazy"
-              />
+              <picture>
+                <source
+                  type="image/svg+xml"
+                  srcSet="/branding/recalc-logo.svg"
+                />
+                <img
+                  src="/branding/recalc-logo.png"
+                  alt="ReCalc Scholarship logo"
+                  width={220}
+                  height={64}
+                  className="h-10 sm:h-12 w-auto max-w-[240px] object-contain opacity-95 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]"
+                  loading="lazy"
+                />
+              </picture>
             </div>
           )}
           <span>Powered by ReLead©</span>
