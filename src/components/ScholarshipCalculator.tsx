@@ -321,7 +321,19 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
           : "preparatoria_presencial_mixta";
 
     const lista = COSTOS_META.planteles_por_nivel_y_modalidad?.[key] ?? [];
-    return [...lista].sort((a, b) => a.localeCompare(b, "es"));
+    if (lista.length > 0) {
+      return [...lista].sort((a, b) => a.localeCompare(b, "es"));
+    }
+
+    const derived = Object.entries(COSTOS_META.planteles ?? {})
+      .filter(([plantelKey, meta]) => {
+        if (plantelKey === "ONLINE") return false;
+        const ofertaNivel = meta?.oferta?.[nivel as Nivel];
+        return Boolean(ofertaNivel && Object.keys(ofertaNivel).length > 0);
+      })
+      .map(([plantelKey]) => plantelKey);
+
+    return derived.sort((a, b) => a.localeCompare(b, "es"));
   }, [nivel, requierePlantel]);
 
   const extrasDisponibles = useMemo(() => {
@@ -464,9 +476,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
     }
 
     const extrasAplicados = isRegreso && extrasActivos ? extrasTotal : 0;
-    const baseConExtras = Math.round((base + extrasAplicados) * 100) / 100;
-    const montoFinal =
-      Math.round(baseConExtras * (1 - porcentajeAplicado / 100) * 100) / 100;
+    const colegiaturaConBeca =
+      Math.round(base * (1 - porcentajeAplicado / 100) * 100) / 100;
+    const montoFinal = Math.round((colegiaturaConBeca + extrasAplicados) * 100) / 100;
 
     setResultadoMonto(montoFinal);
     setResultadoPorcentaje(porcentajeAplicado);
@@ -507,14 +519,11 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
             <div className="relative">
               <div className="flex flex-col items-center gap-2">
                 <img
-                  src="/branding/layout-logo-temp.svg"
+                  src="/branding/logo-recalc.png"
                   alt="ReCalc Scholarship"
                   className="h-12 sm:h-14 md:h-16 w-auto max-w-[320px] md:max-w-[420px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
                   loading="lazy"
                 />
-                <p className="text-[11px] text-slate-400">
-                  Powered by ReLead © {new Date().getFullYear()}
-                </p>
               </div>
 
               {university === "unidep" && (
@@ -730,14 +739,11 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
                   />
                 </button>
                 <div>
-                  <p className="text-xs font-semibold text-slate-200">
-                    Activar costos adicionales
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Desactivado por default; afecta el precio final (Regresos).
-                  </p>
-                </div>
-              </div>
+	                  <p className="text-xs font-semibold text-slate-200">
+	                    Activar costos adicionales
+	                  </p>
+	                </div>
+	              </div>
 
               <div className="text-right">
                 <p className="text-[11px] text-slate-400">Total extras</p>
@@ -954,7 +960,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               </p>
               {isRegreso && extrasActivos && extrasTotal > 0 && (
                 <p className="mt-1 text-xs text-violet-200/80">
-                  Incluye extras seleccionados:{" "}
+                  Incluye extras (sin aplicar beca):{" "}
                   {extrasTotal.toLocaleString("es-MX", {
                     style: "currency",
                     currency: "MXN",
@@ -988,11 +994,12 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 
         <footer className="mt-8 border-t border-slate-800/60 pt-5 text-[11px] text-slate-400 flex flex-col items-center justify-center gap-2 text-center">
           <img
-            src="/branding/relead-logo.gif"
-            alt="ReLead"
-            className="h-10 sm:h-12 w-auto opacity-90"
+            src={university === "unidep" ? "/branding/logo-unidep.png" : "/branding/logo-relead.png"}
+            alt={university === "unidep" ? "UNIDEP" : "ReLead"}
+            className="h-10 sm:h-12 w-auto opacity-90 object-contain"
             loading="lazy"
           />
+          <p>Powered by ReLead © {new Date().getFullYear()}</p>
         </footer>
       </div>
     </div>

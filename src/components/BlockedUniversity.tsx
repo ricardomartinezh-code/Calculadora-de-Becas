@@ -11,14 +11,11 @@ export default function BlockedUniversity({ label }: BlockedUniversityProps) {
         <header className="text-center space-y-3">
           <div className="flex flex-col items-center gap-2">
             <img
-              src="/branding/layout-logo-temp.svg"
+              src="/branding/logo-recalc.png"
               alt="ReCalc Scholarship"
               className="h-14 sm:h-16 md:h-[72px] w-auto max-w-[320px] md:max-w-[420px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
               loading="lazy"
             />
-            <p className="text-[11px] text-slate-400">
-              Powered by ReLead © {new Date().getFullYear()}
-            </p>
           </div>
         </header>
 
@@ -42,16 +39,18 @@ export default function BlockedUniversity({ label }: BlockedUniversityProps) {
           </div>
         </section>
 
-        <footer className="mt-8 pt-5 border-t border-slate-800/60 flex items-center justify-center">
+        <footer className="mt-8 pt-5 border-t border-slate-800/60 flex flex-col items-center justify-center gap-2 text-center">
           <img
-            src="/branding/relead-logo.gif"
+            src="/branding/logo-relead.png"
             alt="ReLead"
             className="h-9 w-auto opacity-90"
             loading="lazy"
           />
+          <p className="text-[11px] text-slate-400">
+            Powered by ReLead © {new Date().getFullYear()}
+          </p>
         </footer>
       </div>
     </div>
   );
 }
-
