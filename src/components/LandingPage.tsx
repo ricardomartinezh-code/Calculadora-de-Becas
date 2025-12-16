@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 
-type UniversityKey = "unidep";
+type UniversityKey = "unidep" | "utc" | "ula";
 
 type UniversityOption = {
   key: UniversityKey;
@@ -10,6 +10,8 @@ type UniversityOption = {
 
 const UNIVERSITIES: UniversityOption[] = [
   { key: "unidep", label: "UNIDEP", path: "/unidep" },
+  { key: "utc", label: "UTC (bloqueado)", path: "/utc" },
+  { key: "ula", label: "ULA (bloqueado)", path: "/ula" },
 ];
 
 export default function LandingPage() {
@@ -27,11 +29,19 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/50 shadow-2xl px-6 pt-8 pb-2 md:px-10 md:pt-10 md:pb-3 recalc-fade-up">
-        <header className="text-center space-y-2">
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-            ReCalc Scholarship
-          </h1>
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/50 shadow-2xl px-6 py-7 md:px-10 md:py-9 recalc-fade-up">
+        <header className="text-center space-y-3">
+          <div className="flex flex-col items-center gap-2">
+            <img
+              src="/branding/layout-logo-temp.svg"
+              alt="ReCalc Scholarship"
+              className="h-14 sm:h-16 md:h-[72px] w-auto max-w-[320px] md:max-w-[420px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
+              loading="lazy"
+            />
+            <p className="text-[11px] text-slate-400">
+              Powered by ReLead © {new Date().getFullYear()}
+            </p>
+          </div>
           <p className="text-sm md:text-base text-slate-300 max-w-xl mx-auto">
             Calcula el porcentaje de beca y la colegiatura estimada según tu
             programa, modalidad, plan y promedio.
@@ -73,11 +83,11 @@ export default function LandingPage() {
           </button>
         </div>
 
-        <footer className="mt-0 py-2 border-t border-slate-800/60 flex items-center justify-center">
+        <footer className="mt-8 pt-5 border-t border-slate-800/60 flex items-center justify-center">
           <img
             src="/branding/relead-logo.gif"
             alt="ReLead"
-            className="h-32 sm:h-40 md:h-48 w-auto opacity-90"
+            className="h-9 w-auto opacity-90"
             loading="lazy"
           />
         </footer>

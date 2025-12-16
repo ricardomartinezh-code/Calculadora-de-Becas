@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import costosData from "../data/costos_2026.json";
+import costosFlatRulesData from "../data/costos_2026_flat_rules.json";
+import costosMetaData from "../data/costos_2026_meta.json";
 
 type Nivel = "licenciatura" | "salud" | "maestria" | "preparatoria";
 type Modalidad = "presencial" | "online" | "mixta";
 type Tier = "T1" | "T2" | "T3";
 type Programa = "nuevo" | "regreso";
+type ProgramaDataKey = "nuevo_ingreso" | "reingreso";
 type UniversityKey = "unidep";
 
 interface RangoPromedio {
@@ -12,139 +14,55 @@ interface RangoPromedio {
   max: number;
 }
 
-interface CostoItem {
+interface CostoRule {
   nivel: Nivel;
   modalidad: Modalidad;
   plan: number;
-  tier?: Tier;
+  tier?: Tier | null;
   rango: RangoPromedio;
   porcentaje: number;
   monto: number;
+  programa: ProgramaDataKey;
+  origen?: string;
 }
 
-interface PlantelInfo {
-  name: string;
-  licTier?: Tier;
-  saludTier?: Tier;
+interface CargoItem {
+  codigo: string;
+  concepto: string;
+  costo: number;
 }
 
-const PLANTEL_TIER_RAW: Record<string, string[]> = {
-  T1: [
-    "Agua Prieta",
-    "Aguascalientes",
-    "Altamira",
-    "Cananea",
-    "Cd. del Carmen",
-    "Ca. Mante",
-    "Cd. Obregón",
-    "Teocaltiche",
-    "Veracruz",
-  ],
-  T2: [
-    "Chihuahua",
-    "Culiacán",
-    "Ensenada",
-    "Los Cabos",
-    "Mexicali",
-    "Nogales",
-    "Puerto Peñasco",
-    "Querétaro",
-    "Saltillo",
-    "Torreón",
-    "Tuxpan",
-    "Zacatecas",
-  ],
-  T3: ["Hermosillo", "La Paz", "Tijuana"],
-  SaludT1: ["Aguascalientes", "Veracruz"],
-  SaludT2: ["Chihuahua", "Culiacán", "Querétaro", "Mexicali", "Saltillo"],
-  SaludT3: ["Hermosillo", "Tijuana"],
-};
-
-function buildPlanteles(): PlantelInfo[] {
-  const byName: Record<string, PlantelInfo> = {};
-
-  (Object.entries(PLANTEL_TIER_RAW) as [string, string[]][]).forEach(
-    ([key, lista]) => {
-      const isSalud = key.startsWith("Salud");
-      const tierKey = (isSalud ? key.replace("Salud", "") : key) as Tier;
-
-      lista.forEach((name) => {
-        if (!byName[name]) {
-          byName[name] = { name };
-        }
-        if (isSalud) {
-          byName[name].saludTier = tierKey;
-        } else {
-          byName[name].licTier = tierKey;
-        }
-      });
-    }
-  );
-
-  return Object.values(byName).sort((a, b) => a.name.localeCompare(b.name));
+interface PlantelOfertaItem {
+  neto: number;
+  becas: Record<string, number>;
 }
 
-const PLANTELES: PlantelInfo[] = buildPlanteles();
+interface PlantelMeta {
+  tier: Tier | null;
+  oferta: Partial<Record<Nivel, Record<string, PlantelOfertaItem>>>;
+  cargos?: Record<string, CargoItem[]>;
+}
 
-const normalizarTexto = (value: string): string =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+interface CostosMeta {
+  version: string;
+  planteles_por_nivel_y_modalidad: Record<string, string[]>;
+  planteles: Record<string, PlantelMeta>;
+}
 
-const obtenerPrecioListaEspecial = (
-  nivel: Nivel | "",
-  modalidad: Modalidad | "",
-  plan: number | "",
-  plantel: string
-): number | null => {
-  if (!nivel || !modalidad || !plan || !plantel) {
-    return null;
-  }
+const COSTOS_RULES: CostoRule[] = costosFlatRulesData as CostoRule[];
+const COSTOS_META: CostosMeta = costosMetaData as CostosMeta;
 
-  const esEscolarOMixta =
-    modalidad === "presencial" || modalidad === "mixta";
-  const plantelNorm = normalizarTexto(plantel);
-
-  if (esEscolarOMixta && nivel === "licenciatura") {
-        // Excepciones 2026 por plantel (precio lista)
-    if (plantelNorm === "chihuahua") {
-      if (plan === 11) return 3336;
-      if (plan === 9) return 4379;
-    }
-
-    if (plantelNorm === "culiacan" || plantelNorm === "queretaro") {
-      if (plan === 11) return 3710;
-      if (plan === 9) return 4594;
-    }
-
-    // Aguascalientes / Altamira / Veracruz: solo plan 11
-    if (
-      plantelNorm === "aguascalientes" ||
-      plantelNorm === "altamira" ||
-      plantelNorm === "veracruz"
-    ) {
-      if (plan === 11) return 3268;
-    }
-  }
-
-  if (esEscolarOMixta && nivel === "salud") {
-    if (plantelNorm === "chihuahua") {
-      return 3988;
-    }
-  }
-
-  return null;
-};
-
-const COSTOS: CostoItem[] = costosData as CostoItem[];
+const resolveProgramaKey = (p: Programa): ProgramaDataKey =>
+  p === "regreso" ? "reingreso" : "nuevo_ingreso";
 
 interface ScholarshipCalculatorProps {
   university?: UniversityKey;
 }
 
 interface SearchableSelectProps {
+  id: string;
+  openId: string | null;
+  setOpenId: (id: string | null) => void;
   label: string;
   placeholder?: string;
   options: string[];
@@ -155,6 +73,9 @@ interface SearchableSelectProps {
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
+  id,
+  openId,
+  setOpenId,
   label,
   placeholder = "Selecciona una opción",
   options,
@@ -163,8 +84,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled,
   accent = "emerald",
 }) => {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const open = openId === id;
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
 
   const filteredOptions = useMemo(() => {
     const q = query.toLowerCase();
@@ -173,12 +95,42 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   const selectedLabel = value || placeholder;
 
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenId(null);
+      }
+    };
+
+    const onPointerDown = (event: MouseEvent | PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(target)) {
+        setOpenId(null);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [open, setOpenId]);
+
   return (
     <div className="space-y-1 [@media(max-height:700px)]:space-y-0">
       <label className="block text-xs font-medium text-slate-300 uppercase tracking-wide">
         {label}
       </label>
-      <div className="relative">
+      <div ref={containerRef} className="relative">
         <button
           type="button"
           className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 ${
@@ -193,7 +145,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             }
           `}
           onClick={() => {
-            if (!disabled) setOpen((prev) => !prev);
+            if (disabled) return;
+            setOpenId(open ? null : id);
           }}
         >
           <span className={value ? "text-slate-50" : "text-slate-500"}>
@@ -217,7 +170,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         </button>
 
         {open && !disabled && (
-          <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
+          <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 shadow-xl recalc-pop">
             {options.length > 6 && (
               <div className="border-b border-slate-800 p-2">
                 <input
@@ -252,7 +205,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     }`}
                     onClick={() => {
                       onChange(opt);
-                      setOpen(false);
+                      setOpenId(null);
                       setQuery("");
                     }}
                   >
@@ -296,21 +249,47 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
   const [precioLista, setPrecioLista] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
 
-  const costos = COSTOS;
   const isRegreso = programa === "regreso";
   const accent = isRegreso ? "violet" : "emerald";
 
+  const [extrasActivos, setExtrasActivos] = useState(false);
+  const [extrasAbiertos, setExtrasAbiertos] = useState(false);
+  const [extrasSeleccionados, setExtrasSeleccionados] = useState<string[]>([]);
+  const [openSelectId, setOpenSelectId] = useState<string | null>(null);
+
+  const requierePlantel = useMemo(() => {
+    if (!nivel || !modalidad) return false;
+    return (
+      (nivel === "licenciatura" ||
+        nivel === "salud" ||
+        nivel === "preparatoria") &&
+      modalidad !== "online"
+    );
+  }, [nivel, modalidad]);
+
+  const plantelResolvido = useMemo(() => {
+    if (!nivel || !modalidad) return "";
+    if (modalidad === "online") return "ONLINE";
+    return requierePlantel ? plantel : "";
+  }, [nivel, modalidad, requierePlantel, plantel]);
+
+  const tierResolvido = useMemo((): Tier | undefined => {
+    if (!requierePlantel) return undefined;
+    if (!plantelResolvido) return undefined;
+    const tier = COSTOS_META.planteles?.[plantelResolvido]?.tier ?? null;
+    return tier ?? undefined;
+  }, [requierePlantel, plantelResolvido]);
+
   const nivelesDisponibles = useMemo(() => {
     const set = new Set<Nivel>();
-    costos.forEach((c) => set.add(c.nivel));
+    COSTOS_RULES.forEach((c) => set.add(c.nivel));
     return Array.from(set).sort();
-  }, [costos]);
+  }, []);
 
   const modalidadesDisponibles = useMemo(() => {
     if (!nivel) return [];
     const set = new Set<Modalidad>();
-    costos
-      .filter((c) => c.nivel === nivel)
+    COSTOS_RULES.filter((c) => c.nivel === nivel)
       .forEach((c) => set.add(c.modalidad));
     const modalidades = Array.from(set);
     const filtradas =
@@ -319,42 +298,48 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
         : modalidades;
     const orden: Modalidad[] = ["presencial", "mixta", "online"];
     return filtradas.sort((a, b) => orden.indexOf(a) - orden.indexOf(b));
-  }, [costos, nivel]);
+  }, [nivel]);
 
   const planesDisponibles = useMemo(() => {
     if (!nivel || !modalidad) return [];
     const set = new Set<number>();
-    costos
-      .filter((c) => c.nivel === nivel && c.modalidad === modalidad)
+    COSTOS_RULES.filter((c) => c.nivel === nivel && c.modalidad === modalidad)
       .forEach((c) => set.add(c.plan));
     return Array.from(set).sort((a, b) => a - b);
-  }, [costos, nivel, modalidad]);
+  }, [nivel, modalidad]);
 
   const plantelesDisponibles = useMemo(() => {
-    const requierePlantel =
-      (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online";
-
     if (!requierePlantel) {
       return [];
     }
 
-    if (nivel === "licenciatura") {
-      return PLANTELES.filter((p) => p.licTier).map((p) => p.name);
-    }
-    if (nivel === "salud") {
-      return PLANTELES.filter((p) => p.saludTier).map((p) => p.name);
-    }
-    return [];
-  }, [nivel, modalidad]);
+    const key =
+      nivel === "licenciatura"
+        ? "licenciatura_presencial_mixta"
+        : nivel === "salud"
+          ? "salud_presencial"
+          : "preparatoria_presencial_mixta";
 
-  const getTierForPlantel = (niv: Nivel | "", name: string): Tier | undefined => {
-    if (!name) return undefined;
-    const info = PLANTELES.find((p) => p.name === name);
-    if (!info) return undefined;
-    if (niv === "salud") return info.saludTier;
-    if (niv === "licenciatura") return info.licTier;
-    return undefined;
-  };
+    const lista = COSTOS_META.planteles_por_nivel_y_modalidad?.[key] ?? [];
+    return [...lista].sort((a, b) => a.localeCompare(b, "es"));
+  }, [nivel, requierePlantel]);
+
+  const extrasDisponibles = useMemo(() => {
+    if (!plantelResolvido) return null;
+    return COSTOS_META.planteles?.[plantelResolvido]?.cargos ?? null;
+  }, [plantelResolvido]);
+
+  const extrasTotal = useMemo(() => {
+    if (!isRegreso || !extrasActivos || !extrasDisponibles) return 0;
+    const selected = new Set(extrasSeleccionados);
+    let total = 0;
+    Object.values(extrasDisponibles).forEach((items) => {
+      items.forEach((item) => {
+        if (selected.has(item.codigo)) total += item.costo;
+      });
+    });
+    return Math.round(total * 100) / 100;
+  }, [extrasActivos, extrasDisponibles, extrasSeleccionados, isRegreso]);
 
   useEffect(() => {
     if (!nivel || !modalidad || !plan) {
@@ -362,61 +347,40 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
       return;
     }
 
-    const requierePlantel =
-      (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online";
-
     if (requierePlantel && !plantel) {
       setPrecioLista(null);
       return;
     }
 
-    let tier: Tier | undefined;
-    if (requierePlantel) {
-      tier = getTierForPlantel(nivel, plantel || "");
-      if (!tier) {
-        setPrecioLista(null);
-        return;
-      }
+    const plantelKey = modalidad === "online" ? "ONLINE" : plantel;
+    const oferta =
+      plantelKey && COSTOS_META.planteles?.[plantelKey]?.oferta?.[nivel]?.[
+        String(plan)
+      ];
+
+    if (typeof oferta?.neto === "number") {
+      setPrecioLista(Math.round(oferta.neto * 100) / 100);
+      return;
     }
 
-    const candidatos = costos.filter((c) => {
+    const referencia = COSTOS_RULES.find((c) => {
       if (c.nivel !== nivel || c.modalidad !== modalidad || c.plan !== plan) {
         return false;
       }
-      if (requierePlantel) {
-        return c.tier === tier;
+      if (requierePlantel && tierResolvido) {
+        return c.tier === tierResolvido;
       }
       return true;
     });
 
-    if (!candidatos.length) {
-      setPrecioLista(null);
-      return;
-    }
-
-    const especial = obtenerPrecioListaEspecial(
-      nivel,
-      modalidad,
-      plan,
-      plantel || ""
-    );
-
-    if (especial !== null) {
-      setPrecioLista(especial);
-      return;
-    }
-
-    const referencia = candidatos[0];
-
-    if (referencia.porcentaje >= 100) {
+    if (!referencia || referencia.porcentaje >= 100) {
       setPrecioLista(null);
       return;
     }
 
     const base = referencia.monto / (1 - referencia.porcentaje / 100);
-    const baseRedondeado = Math.round(base * 100) / 100;
-    setPrecioLista(baseRedondeado);
-  }, [costos, nivel, modalidad, plan, plantel]);
+    setPrecioLista(Math.round(base * 100) / 100);
+  }, [nivel, modalidad, plan, plantel, requierePlantel, tierResolvido]);
 
   const handleCalcular = () => {
     setError("");
@@ -427,9 +391,6 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
       setError("Completa nivel, modalidad y plan de estudios.");
       return;
     }
-
-    const requierePlantel =
-      (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online";
 
     if (requierePlantel && !plantel) {
       setError("Selecciona un plantel para esta línea de negocio.");
@@ -449,21 +410,20 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 
     const promedioNum = Math.round(promedioNumRaw * 10) / 10;
 
-    let tier: Tier | undefined;
-    if (requierePlantel) {
-      tier = getTierForPlantel(nivel, plantel || "");
-      if (!tier) {
-        setError("No se encontró el tier para el plantel seleccionado.");
-        return;
-      }
+    const programaKey = resolveProgramaKey(programa);
+
+    if (requierePlantel && !tierResolvido) {
+      setError("No se encontró el tier para el plantel seleccionado.");
+      return;
     }
 
-    const candidatos = costos.filter((c) => {
+    const candidatos = COSTOS_RULES.filter((c) => {
+      if (c.programa !== programaKey) return false;
       if (c.nivel !== nivel || c.modalidad !== modalidad || c.plan !== plan) {
         return false;
       }
-      if (requierePlantel) {
-        return c.tier === tier;
+      if (requierePlantel && tierResolvido) {
+        return c.tier === tierResolvido;
       }
       return true;
     });
@@ -475,64 +435,38 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
     });
 
     if (!match) {
-      setError("No se encontró un costo para esa combinación de datos y promedio.");
+      setError(
+        "No se encontró un costo para esa combinación de datos, programa y promedio."
+      );
       return;
     }
 
-    const especial = obtenerPrecioListaEspecial(
-      nivel,
-      modalidad,
-      plan,
-      plantel || ""
-    );
-
     let porcentajeAplicado = match.porcentaje;
-
     if (isRegreso) {
-      if (modalidad === "online") {
-        const candidatosNoOnline = costos
-          .filter((c) => {
-            if (c.nivel !== nivel || c.plan !== plan) return false;
-            if (c.modalidad === "online") return false;
-            return c.modalidad === "presencial" || c.modalidad === "mixta";
-          })
-          .sort((a, b) => {
-            if (a.modalidad !== b.modalidad) {
-              return a.modalidad === "presencial" ? -1 : 1;
-            }
-            const rankTier = (t?: Tier) =>
-              t === "T1" ? 0 : t === "T2" ? 1 : t === "T3" ? 2 : 3;
-            return rankTier(a.tier) - rankTier(b.tier);
-          });
-
-        const matchNoOnline = candidatosNoOnline.find((c) => {
-          const min = c.rango.min - 1e-6;
-          const max = c.rango.max + 1e-6;
-          return promedioNum >= min && promedioNum <= max;
-        });
-
-        if (matchNoOnline) {
-          porcentajeAplicado = matchNoOnline.porcentaje;
-        }
-      }
-
       porcentajeAplicado = Math.min(porcentajeAplicado, 25);
     }
 
-    const base =
-      especial !== null
-        ? especial
-        : match.porcentaje >= 100
-          ? null
-          : match.monto / (1 - match.porcentaje / 100);
+    const plantelKey = modalidad === "online" ? "ONLINE" : plantel;
+    const oferta =
+      plantelKey && COSTOS_META.planteles?.[plantelKey]?.oferta?.[nivel]?.[
+        String(plan)
+      ];
+
+    let base: number | null =
+      typeof oferta?.neto === "number" ? oferta.neto : null;
 
     if (base === null) {
-      setError("No se pudo calcular el precio lista para esta combinación.");
-      return;
+      if (match.porcentaje >= 100) {
+        setError("No se pudo calcular el precio lista para esta combinación.");
+        return;
+      }
+      base = match.monto / (1 - match.porcentaje / 100);
     }
 
+    const extrasAplicados = isRegreso && extrasActivos ? extrasTotal : 0;
+    const baseConExtras = Math.round((base + extrasAplicados) * 100) / 100;
     const montoFinal =
-      Math.round(base * (1 - porcentajeAplicado / 100) * 100) / 100;
+      Math.round(baseConExtras * (1 - porcentajeAplicado / 100) * 100) / 100;
 
     setResultadoMonto(montoFinal);
     setResultadoPorcentaje(porcentajeAplicado);
@@ -549,6 +483,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
     setResultadoPorcentaje(null);
     setPrecioLista(null);
     setError("");
+    setExtrasActivos(false);
+    setExtrasAbiertos(false);
+    setExtrasSeleccionados([]);
   };
 
   return (
@@ -559,24 +496,35 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
           : "bg-slate-950"
       }`}
     >
-      <div
-        className={`w-full max-w-4xl rounded-2xl border bg-slate-900/80 shadow-2xl px-5 py-6 md:px-8 md:py-8 space-y-6 [@media(max-height:700px)]:px-4 [@media(max-height:700px)]:py-4 [@media(max-height:700px)]:space-y-4 ${
-          isRegreso
-            ? "border-violet-800/50 shadow-violet-500/10"
-            : "border-slate-800 shadow-emerald-500/10"
-        }`}
-      >
-	        <header className="space-y-1 text-center">
-	          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight [@media(max-height:700px)]:text-lg">
-	            ReCalc Scholarship
-	          </h1>
-            {university === "unidep" && (
-              <div className="max-w-2xl mx-auto flex justify-end">
-                <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900/60 px-2.5 py-1 text-[10px] font-semibold tracking-[0.18em] text-slate-200">
-                  UNIDEP
-                </span>
+        <div
+          className={`w-full max-w-4xl rounded-2xl border bg-slate-900/80 shadow-2xl px-5 py-6 md:px-8 md:py-8 space-y-6 [@media(max-height:700px)]:px-4 [@media(max-height:700px)]:py-4 [@media(max-height:700px)]:space-y-4 ${
+            isRegreso
+              ? "border-violet-800/50 shadow-violet-500/10"
+              : "border-slate-800 shadow-emerald-500/10"
+          }`}
+        >
+	        <header className="text-center">
+            <div className="relative">
+              <div className="flex flex-col items-center gap-2">
+                <img
+                  src="/branding/layout-logo-temp.svg"
+                  alt="ReCalc Scholarship"
+                  className="h-12 sm:h-14 md:h-16 w-auto max-w-[320px] md:max-w-[420px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
+                  loading="lazy"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Powered by ReLead © {new Date().getFullYear()}
+                </p>
               </div>
-            )}
+
+              {university === "unidep" && (
+                <div className="mt-2 flex justify-end sm:mt-0 sm:absolute sm:right-0 sm:top-12">
+                  <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900/60 px-2.5 py-1 text-[10px] font-semibold tracking-[0.18em] text-slate-200">
+                    UNIDEP
+                  </span>
+                </div>
+              )}
+            </div>
 	          <p className="text-sm text-slate-300 max-w-2xl mx-auto [@media(max-height:700px)]:hidden">
 	            Selecciona la línea de negocio, modalidad, plan de estudios y plantel.
 	            Luego ingresa el promedio y obtén el porcentaje de beca y el monto mensual
@@ -592,6 +540,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 
         <div className="grid gap-4 md:grid-cols-3">
           <SearchableSelect
+            id="programa"
+            openId={openSelectId}
+            setOpenId={setOpenSelectId}
             label="Programa"
             options={["Nuevo ingreso", "Regreso"]}
             value={programa === "regreso" ? "Regreso" : "Nuevo ingreso"}
@@ -600,12 +551,18 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               setResultadoMonto(null);
               setResultadoPorcentaje(null);
               setError("");
+              setExtrasActivos(false);
+              setExtrasAbiertos(false);
+              setExtrasSeleccionados([]);
             }}
             placeholder="Selecciona programa"
             accent={accent}
           />
 
           <SearchableSelect
+            id="nivel"
+            openId={openSelectId}
+            setOpenId={setOpenSelectId}
             label="Línea de negocio"
             options={nivelesDisponibles.map((n) => n.charAt(0).toUpperCase() + n.slice(1))}
             value={
@@ -619,6 +576,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               setPlantel("");
               setResultadoMonto(null);
               setResultadoPorcentaje(null);
+              setExtrasActivos(false);
+              setExtrasAbiertos(false);
+              setExtrasSeleccionados([]);
             }}
             placeholder="Selecciona nivel"
             disabled={!nivelesDisponibles.length}
@@ -626,6 +586,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
           />
 
           <SearchableSelect
+            id="modalidad"
+            openId={openSelectId}
+            setOpenId={setOpenSelectId}
             label="Modalidad"
             options={modalidadesDisponibles.map(
               (m) => m.charAt(0).toUpperCase() + m.slice(1)
@@ -639,8 +602,10 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               const normalizado = val.toLowerCase() as Modalidad;
               setModalidad(normalizado);
               setPlan("");
+              setPlantel("");
               setResultadoMonto(null);
               setResultadoPorcentaje(null);
+              setExtrasSeleccionados([]);
             }}
             placeholder="Selecciona modalidad"
             disabled={!modalidadesDisponibles.length}
@@ -650,6 +615,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 
         <div className="grid gap-4 md:grid-cols-2">
           <SearchableSelect
+            id="plan"
+            openId={openSelectId}
+            setOpenId={setOpenSelectId}
             label="Plan de estudios (cuatrimestres)"
             options={planesDisponibles.map((p) => `${p} cuatrimestres`)}
             value={plan ? `${plan} cuatrimestres` : ""}
@@ -658,6 +626,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               setPlan(Number.isNaN(num) ? "" : num);
               setResultadoMonto(null);
               setResultadoPorcentaje(null);
+              setExtrasSeleccionados([]);
             }}
             placeholder="Selecciona plan"
             disabled={!planesDisponibles.length}
@@ -665,8 +634,11 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
           />
 
           <SearchableSelect
+            id="plantel"
+            openId={openSelectId}
+            setOpenId={setOpenSelectId}
             label={
-              (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online"
+              requierePlantel
                 ? "Plantel"
                 : "Plantel (no aplica)"
             }
@@ -676,21 +648,185 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               setPlantel(val);
               setResultadoMonto(null);
               setResultadoPorcentaje(null);
+              setExtrasSeleccionados([]);
             }}
             placeholder={
-              (nivel === "licenciatura" || nivel === "salud") && modalidad !== "online"
+              requierePlantel
                 ? "Selecciona plantel"
                 : "No es necesario para este nivel o modalidad"
             }
             disabled={
-              !(
-                (nivel === "licenciatura" || nivel === "salud") &&
-                modalidad !== "online"
-              ) || plantelesDisponibles.length === 0
+              !requierePlantel || plantelesDisponibles.length === 0
             }
             accent={accent}
           />
         </div>
+
+        {isRegreso && (
+          <section
+            className={`rounded-2xl border p-4 md:p-5 ${
+              isRegreso
+                ? "border-violet-800/50 bg-violet-950/20"
+                : "border-slate-800 bg-slate-950/30"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                  Regresos · Costos adicionales
+                </p>
+                <p className="mt-1 text-sm text-slate-200">
+                  Visualiza y (opcionalmente) suma cargos extra al cálculo final.
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Plantel:{" "}
+                  <span className="text-slate-200">
+                    {plantelResolvido || (requierePlantel ? "Selecciona uno" : "—")}
+                  </span>
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setExtrasAbiertos((v) => !v)}
+                className="rounded-xl border border-slate-700 bg-slate-900/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200 hover:border-slate-500 hover:bg-slate-900/60 transition"
+              >
+                {extrasAbiertos ? "Ocultar" : "Ver lista"}
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!plantelResolvido || !extrasDisponibles) return;
+                    setExtrasActivos((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        setExtrasAbiertos(true);
+                      } else {
+                        setExtrasSeleccionados([]);
+                      }
+                      return next;
+                    });
+                  }}
+                  disabled={!plantelResolvido || !extrasDisponibles}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full border transition ${
+                    extrasActivos
+                      ? "border-violet-300/60 bg-violet-500/80"
+                      : "border-slate-600 bg-slate-800/70"
+                  } ${
+                    !plantelResolvido || !extrasDisponibles
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer"
+                  }`}
+                  aria-pressed={extrasActivos}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-slate-50 shadow transition ${
+                      extrasActivos ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+                <div>
+                  <p className="text-xs font-semibold text-slate-200">
+                    Activar costos adicionales
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Desactivado por default; afecta el precio final (Regresos).
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <p className="text-[11px] text-slate-400">Total extras</p>
+                <p className="text-sm font-semibold text-slate-50">
+                  {extrasTotal.toLocaleString("es-MX", {
+                    style: "currency",
+                    currency: "MXN",
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {extrasAbiertos && (
+              <div className="mt-4">
+                {!plantelResolvido ? (
+                  <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-4 text-xs text-slate-300">
+                    Selecciona un plantel para ver los cargos disponibles.
+                  </div>
+                ) : !extrasDisponibles ? (
+                  <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-4 text-xs text-slate-300">
+                    No hay cargos disponibles para este plantel.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {Object.entries(extrasDisponibles).map(([categoria, items]) => (
+                      <div
+                        key={categoria}
+                        className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-3"
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                          {categoria}
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {items.map((item) => {
+                            const checked = extrasSeleccionados.includes(item.codigo);
+                            const disabled = !extrasActivos;
+                            return (
+                              <label
+                                key={item.codigo}
+                                className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 transition ${
+                                  checked
+                                    ? "border-violet-500/50 bg-violet-500/10"
+                                    : "border-slate-800/70 bg-slate-900/20"
+                                } ${disabled ? "opacity-60" : "hover:bg-slate-900/40 cursor-pointer"}`}
+                              >
+                                <span className="flex items-start gap-2">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-0.5 accent-violet-500"
+                                    checked={checked}
+                                    disabled={disabled}
+                                    onChange={() => {
+                                      setExtrasSeleccionados((prev) => {
+                                        if (prev.includes(item.codigo)) {
+                                          return prev.filter((c) => c !== item.codigo);
+                                        }
+                                        return [...prev, item.codigo];
+                                      });
+                                    }}
+                                  />
+                                  <span>
+                                    <span className="block text-xs text-slate-100">
+                                      {item.concepto}
+                                    </span>
+                                    <span className="block text-[11px] text-slate-400">
+                                      Código: {item.codigo}
+                                    </span>
+                                  </span>
+                                </span>
+                                <span className="text-xs font-semibold text-slate-50">
+                                  {item.costo.toLocaleString("es-MX", {
+                                    style: "currency",
+                                    currency: "MXN",
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] items-end">
           <div className="space-y-1">
@@ -758,6 +894,30 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
                   maximumFractionDigits: 2,
                 })}
               </p>
+              {isRegreso && extrasActivos && extrasTotal > 0 && (
+                <div className="mt-2 text-[11px] text-slate-400 space-y-0.5">
+                  <div className="flex items-center justify-end gap-2">
+                    <span>Extras:</span>
+                    <span className="text-slate-200">
+                      {extrasTotal.toLocaleString("es-MX", {
+                        style: "currency",
+                        currency: "MXN",
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <span>Lista + extras:</span>
+                    <span className="text-slate-50 font-semibold">
+                      {(precioLista + extrasTotal).toLocaleString("es-MX", {
+                        style: "currency",
+                        currency: "MXN",
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -792,6 +952,16 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
               >
                 Monto mensual estimado de colegiatura con beca aplicada.
               </p>
+              {isRegreso && extrasActivos && extrasTotal > 0 && (
+                <p className="mt-1 text-xs text-violet-200/80">
+                  Incluye extras seleccionados:{" "}
+                  {extrasTotal.toLocaleString("es-MX", {
+                    style: "currency",
+                    currency: "MXN",
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p
@@ -816,20 +986,13 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
           </section>
         )}
 
-        <footer className="mt-6 border-t border-slate-800/60 pt-6 text-[11px] text-slate-400 flex flex-col items-center justify-center gap-2 text-center">
-          {university === "unidep" && (
-            <div className="flex items-center justify-center">
-              <img
-                src="/branding/recalc-logo.svg"
-                alt="ReCalc Scholarship logo"
-                width={220}
-                height={64}
-                className="h-10 sm:h-12 w-auto max-w-[240px] object-contain opacity-95 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]"
-                loading="lazy"
-              />
-            </div>
-          )}
-          <span>Powered by ReLead©</span>
+        <footer className="mt-8 border-t border-slate-800/60 pt-5 text-[11px] text-slate-400 flex flex-col items-center justify-center gap-2 text-center">
+          <img
+            src="/branding/relead-logo.gif"
+            alt="ReLead"
+            className="h-10 sm:h-12 w-auto opacity-90"
+            loading="lazy"
+          />
         </footer>
       </div>
     </div>
