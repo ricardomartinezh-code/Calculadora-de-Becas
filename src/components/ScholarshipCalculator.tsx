@@ -56,6 +56,23 @@ const COSTOS_META: CostosMeta = costosMetaData as CostosMeta;
 const resolveProgramaKey = (p: Programa): ProgramaDataKey =>
   p === "nuevo" ? "nuevo_ingreso" : "reingreso";
 
+const resolveReferenciaRule = (
+  rules: CostoRule[],
+  plantelValue: string,
+  tier?: Tier
+) => {
+  if (!rules.length) return undefined;
+  if (plantelValue) {
+    const porPlantel = rules.find((c) => c.plantel === plantelValue);
+    if (porPlantel) return porPlantel;
+  }
+  if (tier) {
+    const porTier = rules.find((c) => c.tier === tier && !c.plantel);
+    if (porTier) return porTier;
+  }
+  return rules[0];
+};
+
 const normalizarCargos = (cargos: Record<string, CargoItem[]>) => {
   const normalizados = Object.entries(cargos)
     .map(([categoria, items]) => ({
@@ -280,6 +297,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
   const [resultadoPorcentaje, setResultadoPorcentaje] = useState<number | null>(
     null
   );
+  const [resultadoEtiqueta, setResultadoEtiqueta] = useState<string | null>(null);
   const [precioLista, setPrecioLista] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
 
@@ -538,17 +556,11 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
       if (c.programa !== programaKey) return false;
       return c.nivel === nivel && c.modalidad === modalidad && c.plan === plan;
     });
-    let referencia = baseRules[0];
-    if (requierePlantel && plantel) {
-      const porPlantel = baseRules.find((c) => c.plantel === plantel);
-      if (porPlantel) {
-        referencia = porPlantel;
-      } else if (tierResolvido) {
-        referencia = baseRules.find(
-          (c) => c.tier === tierResolvido && !c.plantel
-        );
-      }
-    }
+    const referencia = resolveReferenciaRule(
+      baseRules,
+      requierePlantel ? plantel : "",
+      tierResolvido
+    );
 
     if (!referencia || referencia.porcentaje >= 100) {
       setPrecioLista(null);
@@ -563,6 +575,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
     setError("");
     setResultadoMonto(null);
     setResultadoPorcentaje(null);
+    setResultadoEtiqueta(null);
 
     if (!nivel || !modalidad || !plan) {
       setError("Completa nivel, modalidad y plan de estudios.");
@@ -586,6 +599,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
     }
 
     const promedioNum = Math.round(promedioNumRaw * 10) / 10;
+    const sinAccesoBeca = promedioNum < 7;
 
     const programaKey = resolveProgramaKey(programa);
 
@@ -610,20 +624,22 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
       }
     }
 
-    const match = candidatos.find((c) => {
-      const min = c.rango.min - 1e-6;
-      const max = c.rango.max + 1e-6;
-      return promedioNum >= min && promedioNum <= max;
-    });
+    const match = sinAccesoBeca
+      ? undefined
+      : candidatos.find((c) => {
+          const min = c.rango.min - 1e-6;
+          const max = c.rango.max + 1e-6;
+          return promedioNum >= min && promedioNum <= max;
+        });
 
-    if (!match) {
+    if (!sinAccesoBeca && !match) {
       setError(
         "No se encontró un costo para esa combinación de datos, programa y promedio."
       );
       return;
     }
 
-    let porcentajeAplicado = match.porcentaje;
+    let porcentajeAplicado = match ? match.porcentaje : 0;
     if (isProgramaExtras) {
       porcentajeAplicado = Math.min(porcentajeAplicado, 25);
     }
@@ -638,11 +654,18 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
       typeof oferta?.neto === "number" ? oferta.neto : null;
 
     if (base === null) {
-      if (match.porcentaje >= 100) {
+      const referencia = match
+        ? match
+        : resolveReferenciaRule(
+            baseRules,
+            requierePlantel ? plantel : "",
+            tierResolvido
+          );
+      if (!referencia || referencia.porcentaje >= 100) {
         setError("No se pudo calcular el precio lista para esta combinación.");
         return;
       }
-      base = match.monto / (1 - match.porcentaje / 100);
+      base = referencia.monto / (1 - referencia.porcentaje / 100);
     }
 
     const extrasAplicados = isProgramaExtras && extrasActivos ? extrasTotal : 0;
@@ -657,6 +680,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 
     setResultadoMonto(montoFinal);
     setResultadoPorcentaje(porcentajeAplicado);
+    setResultadoEtiqueta(sinAccesoBeca ? "Sin acceso a beca" : null);
   };
 
   const limpiar = () => {
@@ -669,6 +693,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
     setPromedio("");
     setResultadoMonto(null);
     setResultadoPorcentaje(null);
+    setResultadoEtiqueta(null);
     setPrecioLista(null);
     setError("");
     setExtrasActivos(false);
@@ -831,7 +856,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
 
   return (
     <div
-      className={`min-h-screen text-slate-50 flex items-center justify-center p-4 [@media(max-height:700px)]:items-start [@media(max-height:700px)]:p-2 ${
+      className={`min-h-screen min-h-[100dvh] text-slate-50 flex items-center justify-center p-3 sm:p-4 md:p-6 [@media(max-height:700px)]:items-start [@media(max-height:700px)]:p-2 ${
         isAcademia
           ? "bg-gradient-to-br from-amber-950 via-slate-950 to-slate-950"
           : isRegreso
@@ -840,7 +865,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
       }`}
     >
         <div
-          className={`w-full max-w-4xl rounded-2xl border bg-slate-900/80 shadow-2xl px-5 py-6 md:px-8 md:py-8 space-y-6 backdrop-blur-sm recalc-fade-up [@media(max-height:700px)]:px-4 [@media(max-height:700px)]:py-4 [@media(max-height:700px)]:space-y-4 ${
+          className={`w-full max-w-4xl lg:max-w-5xl rounded-2xl border bg-slate-900/80 shadow-2xl px-5 py-6 md:px-8 md:py-8 lg:px-10 lg:py-10 space-y-6 backdrop-blur-sm recalc-fade-up [@media(max-height:700px)]:px-4 [@media(max-height:700px)]:py-4 [@media(max-height:700px)]:space-y-4 ${
             isRegreso
               ? "border-violet-800/50 shadow-violet-500/10"
               : "border-slate-800 shadow-emerald-500/10"
@@ -1384,7 +1409,7 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
                       : "text-emerald-100"
                 }`}
               >
-                Beca del {resultadoPorcentaje}%
+                {resultadoEtiqueta ?? `Beca del ${resultadoPorcentaje}%`}
               </p>
               <p
                 className={`mt-1 text-sm ${
@@ -1395,7 +1420,9 @@ const ScholarshipCalculator: React.FC<ScholarshipCalculatorProps> = ({
                       : "text-emerald-50/90"
                 }`}
               >
-                Monto mensual estimado de colegiatura con beca aplicada.
+                {resultadoEtiqueta
+                  ? "Monto mensual estimado de colegiatura sin beca."
+                  : "Monto mensual estimado de colegiatura con beca aplicada."}
               </p>
               {beneficioActivo && (
                 <p
