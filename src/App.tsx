@@ -1,12 +1,17 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { StackHandler, useUser } from "@stackframe/react";
-import LandingPage from "./components/LandingPage";
-import BlockedUniversity from "./components/BlockedUniversity";
-import ScholarshipCalculator from "./components/ScholarshipCalculator";
-import AuthPage from "./components/AuthPage";
-import AccountPage from "./components/AccountPage";
 import { setSelectedSlug } from "./utils/selection";
+
+const LandingPage = React.lazy(() => import("./components/LandingPage"));
+const BlockedUniversity = React.lazy(
+  () => import("./components/BlockedUniversity")
+);
+const ScholarshipCalculator = React.lazy(
+  () => import("./components/ScholarshipCalculator")
+);
+const AuthPage = React.lazy(() => import("./components/AuthPage"));
+const AccountPage = React.lazy(() => import("./components/AccountPage"));
 
 type Programa = "nuevo" | "regreso" | "academia";
 
@@ -47,19 +52,29 @@ const UnidepRoute: React.FC = () => {
   );
 };
 
+const PageLoader = () => (
+  <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-50 flex items-center justify-center p-6">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-5 text-sm text-slate-300 shadow-xl">
+      Cargando...
+    </div>
+  </div>
+);
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/auth" element={<Navigate to="/auth/sign-in" replace />} />
-      <Route path="/auth/:mode" element={<AuthPage />} />
-      <Route path="/account/*" element={<AccountPage />} />
-      <Route path="/handler/*" element={<StackHandler fullPage />} />
-      <Route path="/unidep" element={<UnidepRoute />} />
-      <Route path="/unidep/:program" element={<UnidepRoute />} />
-      <Route path="/utc" element={<BlockedUniversity label="UTC" />} />
-      <Route path="/ula" element={<BlockedUniversity label="ULA" />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/auth" element={<Navigate to="/auth/sign-in" replace />} />
+        <Route path="/auth/:mode" element={<AuthPage />} />
+        <Route path="/account/*" element={<AccountPage />} />
+        <Route path="/handler/*" element={<StackHandler fullPage />} />
+        <Route path="/unidep" element={<UnidepRoute />} />
+        <Route path="/unidep/:program" element={<UnidepRoute />} />
+        <Route path="/utc" element={<BlockedUniversity label="UTC" />} />
+        <Route path="/ula" element={<BlockedUniversity label="ULA" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
