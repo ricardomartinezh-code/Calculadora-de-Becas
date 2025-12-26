@@ -1,4 +1,4 @@
-import { UNIVERSITY_DOMAINS } from "./config";
+import { UNIVERSITY_DOMAINS, isAllowedDomain } from "./config";
 import { getSql } from "./db";
 import { verifyPassword } from "./password";
 import { sendJson, setCors } from "./response";
@@ -44,7 +44,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const sql = getSql();
+    const sql = await getSql();
     const result = await sql`
       SELECT email, password_hash, salt, university_slug
       FROM users
@@ -70,7 +70,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const domain = email.split("@")[1] ?? "";
-    if (!allowedDomains.includes(domain)) {
+    if (!isAllowedDomain(domain, allowedDomains)) {
       sendJson(res, 403, { error: "Dominio no permitido para esta universidad." });
       return;
     }

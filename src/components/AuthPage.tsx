@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { UNIVERSITY_DOMAINS, UNIVERSITY_LABELS } from "../data/authConfig";
-import { getEmailDomain, setStoredSession } from "../utils/auth";
+import { getEmailDomain, isAllowedDomain, setStoredSession } from "../utils/auth";
 
 type AuthMode = "signin" | "signup";
 
@@ -76,7 +76,7 @@ export default function AuthPage({ slug }: AuthPageProps) {
 
     if (mode === "signup") {
       const domain = getEmailDomain(trimmedEmail);
-      if (!allowedDomains.includes(domain)) {
+      if (!isAllowedDomain(domain, allowedDomains)) {
         setError(`Solo se permiten correos ${domainHint}.`);
         return;
       }

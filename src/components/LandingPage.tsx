@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { UNIVERSITY_DOMAINS } from "../data/authConfig";
-import { getEmailDomain, getStoredSession } from "../utils/auth";
+import { getEmailDomain, getStoredSession, isAllowedDomain } from "../utils/auth";
 
 type UniversityKey = "unidep" | "utc" | "ula";
 
@@ -22,7 +22,7 @@ export default function LandingPage() {
   const hasUnidepAccess =
     Boolean(session) &&
     session.slug === "unidep" &&
-    UNIVERSITY_DOMAINS.unidep.includes(emailDomain);
+    isAllowedDomain(emailDomain, UNIVERSITY_DOMAINS.unidep);
 
   const selectedUniversity = useMemo(
     () => UNIVERSITIES.find((u) => u.key === selected) ?? null,

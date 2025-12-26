@@ -10,6 +10,19 @@ export function getEmailDomain(email: string): string {
   return parts.length === 2 ? parts[1] : "";
 }
 
+export function isAllowedDomain(domain: string, allowedDomains: readonly string[]) {
+  const normalized = domain.trim().toLowerCase();
+  if (!normalized) return false;
+  return allowedDomains.some((entry) => {
+    const allowed = entry.toLowerCase();
+    if (allowed.startsWith("*.")) {
+      const base = allowed.slice(2);
+      return normalized !== base && normalized.endsWith(`.${base}`);
+    }
+    return normalized === allowed;
+  });
+}
+
 export function getStoredSession(): AuthSession | null {
   if (typeof window === "undefined") return null;
   try {

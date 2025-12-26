@@ -4,7 +4,7 @@ import BlockedUniversity from "./components/BlockedUniversity";
 import ScholarshipCalculator from "./components/ScholarshipCalculator";
 import AuthPage from "./components/AuthPage";
 import { UNIVERSITY_DOMAINS } from "./data/authConfig";
-import { getEmailDomain, getStoredSession } from "./utils/auth";
+import { getEmailDomain, getStoredSession, isAllowedDomain } from "./utils/auth";
 
 function getSegments(pathname: string): string[] {
   const cleaned = pathname.replace(/\/+$/, "");
@@ -38,7 +38,7 @@ function App() {
     const hasUnidepAccess =
       Boolean(session) &&
       session.slug === "unidep" &&
-      UNIVERSITY_DOMAINS.unidep.includes(emailDomain);
+      isAllowedDomain(emailDomain, UNIVERSITY_DOMAINS.unidep);
     if (!hasUnidepAccess) {
       return <RedirectToAuth slug="unidep" />;
     }
