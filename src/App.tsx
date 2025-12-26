@@ -2,10 +2,10 @@ import React from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { StackHandler, useUser } from "@stackframe/react";
 import LandingPage from "./components/LandingPage";
-import AuthPage from "./components/AuthPage";
-import AccountPage from "./components/AccountPage";
 import BlockedUniversity from "./components/BlockedUniversity";
 import ScholarshipCalculator from "./components/ScholarshipCalculator";
+import AuthPage from "./components/AuthPage";
+import AccountPage from "./components/AccountPage";
 import { setSelectedSlug } from "./utils/selection";
 
 type Programa = "nuevo" | "regreso" | "academia";
