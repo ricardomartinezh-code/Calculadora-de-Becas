@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { StackProvider } from "@stackframe/react";
+import { TooltipProvider } from "@stackframe/stack-ui";
 import App from "./App";
 import "./index.css";
 import { stackClientApp } from "./stack/client";
@@ -10,7 +11,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <BrowserRouter>
       <StackProvider app={stackClientApp}>
-        <App />
+        <TooltipProvider>
+          <App />
+        </TooltipProvider>
       </StackProvider>
     </BrowserRouter>
   </React.StrictMode>
