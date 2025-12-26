@@ -42,10 +42,9 @@ export default async function handler(req: any, res: any) {
     sendJson(res, 400, { error: "Universidad no configurada." });
     return;
   }
-
   const domain = getEmailDomain(email);
   if (!domain) {
-    sendJson(res, 400, { error: "Correo invÃ¡lido." });
+    sendJson(res, 400, { error: "Correo inválido." });
     return;
   }
   if (!isAllowedDomain(domain, allowedDomains)) {
@@ -69,13 +68,16 @@ export default async function handler(req: any, res: any) {
       RETURNING email;
     `;
 
-    if (!result.length) {
+    const rows = Array.isArray(result) ? result : result.rows ?? [];
+
+    if (!rows.length) {
       sendJson(res, 409, { error: "El correo ya está registrado." });
       return;
     }
 
-    sendJson(res, 200, { email: result[0].email });
+    sendJson(res, 200, { email: rows[0].email });
   } catch (err) {
     sendJson(res, 500, { error: "Error al registrar el usuario." });
   }
 }
+
