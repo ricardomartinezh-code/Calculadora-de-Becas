@@ -1,4 +1,4 @@
-import { UNIVERSITY_DOMAINS, isAllowedDomain } from "./config";
+import { UNIVERSITY_DOMAINS, getEmailDomain, isAllowedDomain } from "./config";
 import { getSql } from "./db";
 import { createSalt, hashPassword } from "./password";
 import { sendJson, setCors } from "./response";
@@ -42,8 +42,11 @@ export default async function handler(req: any, res: any) {
     sendJson(res, 400, { error: "Universidad no configurada." });
     return;
   }
-
-  const domain = email.split("@")[1] ?? "";
+  const domain = getEmailDomain(email);
+  if (!domain) {
+    sendJson(res, 400, { error: "Correo inválido." });
+    return;
+  }
   if (!isAllowedDomain(domain, allowedDomains)) {
     sendJson(res, 403, { error: "Dominio no permitido para esta universidad." });
     return;
@@ -65,13 +68,18 @@ export default async function handler(req: any, res: any) {
       RETURNING email;
     `;
 
-    if (!result.length) {
+    const rows = (Array.isArray(result) ? result : result.rows ?? []) as Array<{
+      email: string;
+    }>;
+
+    if (!rows.length) {
       sendJson(res, 409, { error: "El correo ya está registrado." });
       return;
     }
 
-    sendJson(res, 200, { email: result[0].email });
+    sendJson(res, 200, { email: rows[0].email });
   } catch (err) {
     sendJson(res, 500, { error: "Error al registrar el usuario." });
   }
 }
+

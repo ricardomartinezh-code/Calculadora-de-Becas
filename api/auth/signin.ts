@@ -1,4 +1,4 @@
-import { UNIVERSITY_DOMAINS, isAllowedDomain } from "./config";
+import { UNIVERSITY_DOMAINS, getEmailDomain, isAllowedDomain } from "./config";
 import { getSql } from "./db";
 import { verifyPassword } from "./password";
 import { sendJson, setCors } from "./response";
@@ -52,12 +52,14 @@ export default async function handler(req: any, res: any) {
       LIMIT 1;
     `;
 
-    if (!result.length) {
+    const rows = Array.isArray(result) ? result : result.rows ?? [];
+
+    if (!rows.length) {
       sendJson(res, 401, { error: "Credenciales inválidas." });
       return;
     }
 
-    const user = result[0] as {
+    const user = rows[0] as {
       email: string;
       password_hash: string;
       salt: string;
@@ -68,8 +70,11 @@ export default async function handler(req: any, res: any) {
       sendJson(res, 403, { error: "Acceso no autorizado para este panel." });
       return;
     }
-
-    const domain = email.split("@")[1] ?? "";
+    const domain = getEmailDomain(email);
+    if (!domain) {
+      sendJson(res, 400, { error: "Correo inválido." });
+      return;
+    }
     if (!isAllowedDomain(domain, allowedDomains)) {
       sendJson(res, 403, { error: "Dominio no permitido para esta universidad." });
       return;
@@ -86,3 +91,4 @@ export default async function handler(req: any, res: any) {
     sendJson(res, 500, { error: "Error al validar credenciales." });
   }
 }
+
